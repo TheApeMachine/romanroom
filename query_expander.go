@@ -13,22 +13,22 @@ type QueryExpander struct {
 
 // QueryExpanderConfig holds configuration for query expansion
 type QueryExpanderConfig struct {
-	MaxExpansions     int     `json:"max_expansions"`
-	EnableSynonyms    bool    `json:"enable_synonyms"`
-	EnableParaphrases bool    `json:"enable_paraphrases"`
-	EnableSpelling    bool    `json:"enable_spelling"`
-	EnableAcronyms    bool    `json:"enable_acronyms"`
+	MaxExpansions       int     `json:"max_expansions"`
+	EnableSynonyms      bool    `json:"enable_synonyms"`
+	EnableParaphrases   bool    `json:"enable_paraphrases"`
+	EnableSpelling      bool    `json:"enable_spelling"`
+	EnableAcronyms      bool    `json:"enable_acronyms"`
 	SimilarityThreshold float64 `json:"similarity_threshold"`
 }
 
 // ExpansionResult contains the expanded query variations
 type ExpansionResult struct {
-	Original    string            `json:"original"`
-	Expansions  []string          `json:"expansions"`
-	Synonyms    []string          `json:"synonyms"`
-	Paraphrases []string          `json:"paraphrases"`
-	Spellings   []string          `json:"spellings"`
-	Acronyms    []string          `json:"acronyms"`
+	Original    string                 `json:"original"`
+	Expansions  []string               `json:"expansions"`
+	Synonyms    []string               `json:"synonyms"`
+	Paraphrases []string               `json:"paraphrases"`
+	Spellings   []string               `json:"spellings"`
+	Acronyms    []string               `json:"acronyms"`
 	Metadata    map[string]interface{} `json:"metadata"`
 }
 
@@ -66,7 +66,7 @@ func (qe *QueryExpander) Expand(ctx context.Context, originalQuery string, parse
 	}
 
 	result := &ExpansionResult{
-		Original:    originalQuery,
+		Original:    originalQuery, // Used in metadata for debugging and tracking
 		Expansions:  make([]string, 0),
 		Synonyms:    make([]string, 0),
 		Paraphrases: make([]string, 0),
@@ -116,6 +116,7 @@ func (qe *QueryExpander) Expand(ctx context.Context, originalQuery string, parse
 	}
 
 	// Add metadata
+	result.Metadata["original_query"] = result.Original
 	result.Metadata["expansion_count"] = len(result.Expansions)
 	result.Metadata["synonym_count"] = len(result.Synonyms)
 	result.Metadata["paraphrase_count"] = len(result.Paraphrases)
@@ -123,6 +124,70 @@ func (qe *QueryExpander) Expand(ctx context.Context, originalQuery string, parse
 	result.Metadata["acronym_count"] = len(result.Acronyms)
 
 	return result.Expansions, nil
+}
+
+// ExpandWithDetails returns the full expansion result including original query and metadata
+func (qe *QueryExpander) ExpandWithDetails(originalQuery string, parsed *ParsedQuery) (*ExpansionResult, error) {
+	if strings.TrimSpace(originalQuery) == "" {
+		return nil, fmt.Errorf("empty query")
+	}
+
+	result := &ExpansionResult{
+		Original:    originalQuery, // Used in metadata for debugging and tracking
+		Expansions:  make([]string, 0),
+		Synonyms:    make([]string, 0),
+		Paraphrases: make([]string, 0),
+		Spellings:   make([]string, 0),
+		Acronyms:    make([]string, 0),
+		Metadata:    make(map[string]interface{}),
+	}
+
+	// Generate expansions using the same logic as Expand
+	if qe.config.EnableSynonyms {
+		synonyms := qe.GenerateSynonyms(originalQuery, parsed)
+		result.Synonyms = synonyms
+		result.Expansions = append(result.Expansions, synonyms...)
+	}
+
+	if qe.config.EnableParaphrases {
+		paraphrases := qe.generateParaphrases(originalQuery, parsed)
+		result.Paraphrases = paraphrases
+		result.Expansions = append(result.Expansions, paraphrases...)
+	}
+
+	if qe.config.EnableSpelling {
+		spellings := qe.generateSpellingVariations(originalQuery, parsed)
+		result.Spellings = spellings
+		result.Expansions = append(result.Expansions, spellings...)
+	}
+
+	if qe.config.EnableAcronyms {
+		acronyms := qe.generateAcronymExpansions(originalQuery, parsed)
+		result.Acronyms = acronyms
+		result.Expansions = append(result.Expansions, acronyms...)
+	}
+
+	// Add context-based expansions only if any expansion type is enabled
+	if qe.config.EnableSynonyms || qe.config.EnableParaphrases || qe.config.EnableSpelling || qe.config.EnableAcronyms {
+		contextExpansions := qe.AddContext(originalQuery, parsed)
+		result.Expansions = append(result.Expansions, contextExpansions...)
+	}
+
+	// Deduplicate and limit expansions
+	result.Expansions = qe.deduplicateStrings(result.Expansions)
+	if len(result.Expansions) > qe.config.MaxExpansions {
+		result.Expansions = result.Expansions[:qe.config.MaxExpansions]
+	}
+
+	// Add metadata
+	result.Metadata["original_query"] = result.Original
+	result.Metadata["expansion_count"] = len(result.Expansions)
+	result.Metadata["synonym_count"] = len(result.Synonyms)
+	result.Metadata["paraphrase_count"] = len(result.Paraphrases)
+	result.Metadata["spelling_count"] = len(result.Spellings)
+	result.Metadata["acronym_count"] = len(result.Acronyms)
+
+	return result, nil
 }
 
 // GenerateSynonyms creates synonym-based query variations
@@ -158,7 +223,7 @@ func (qe *QueryExpander) GenerateSynonyms(query string, parsed *ParsedQuery) []s
 					copy(newWords, words)
 					newWords[i] = synonym
 					synonymPhrase := strings.Join(newWords, " ")
-					
+
 					// Replace phrase in original query
 					synonymQuery := strings.ReplaceAll(query, phrase, synonymPhrase)
 					if synonymQuery != query {
@@ -253,7 +318,7 @@ func (qe *QueryExpander) generateParaphrases(query string, parsed *ParsedQuery) 
 	}
 
 	queryLower := strings.ToLower(query)
-	
+
 	for pattern, replacements := range paraphrasePatterns {
 		if strings.Contains(queryLower, pattern) {
 			for _, replacement := range replacements {
@@ -270,7 +335,7 @@ func (qe *QueryExpander) generateParaphrases(query string, parsed *ParsedQuery) 
 		// Reorder terms
 		terms := make([]string, len(parsed.Terms))
 		copy(terms, parsed.Terms)
-		
+
 		// Simple reordering (reverse)
 		for i, j := 0, len(terms)-1; i < j; i, j = i+1, j-1 {
 			terms[i], terms[j] = terms[j], terms[i]
@@ -290,16 +355,16 @@ func (qe *QueryExpander) generateSpellingVariations(query string, parsed *Parsed
 
 	// Common spelling corrections
 	spellingCorrections := map[string][]string{
-		"recieve":    {"receive"},
-		"seperate":   {"separate"},
-		"definately": {"definitely"},
-		"occured":    {"occurred"},
-		"begining":   {"beginning"},
-		"existance":  {"existence"},
+		"recieve":      {"receive"},
+		"seperate":     {"separate"},
+		"definately":   {"definitely"},
+		"occured":      {"occurred"},
+		"begining":     {"beginning"},
+		"existance":    {"existence"},
 		"maintainance": {"maintenance"},
-		"performace": {"performance"},
-		"recomend":   {"recommend"},
-		"sucessful":  {"successful"},
+		"performace":   {"performance"},
+		"recomend":     {"recommend"},
+		"sucessful":    {"successful"},
 	}
 
 	queryLower := strings.ToLower(query)
@@ -342,31 +407,31 @@ func (qe *QueryExpander) generateAcronymExpansions(query string, parsed *ParsedQ
 
 	// Common acronym expansions
 	acronymMap := map[string][]string{
-		"ai":   {"artificial intelligence"},
-		"ml":   {"machine learning"},
-		"nlp":  {"natural language processing"},
-		"api":  {"application programming interface"},
-		"ui":   {"user interface"},
-		"ux":   {"user experience"},
-		"db":   {"database"},
-		"os":   {"operating system"},
-		"cpu":  {"central processing unit"},
-		"gpu":  {"graphics processing unit"},
-		"ram":  {"random access memory"},
-		"ssd":  {"solid state drive"},
-		"hdd":  {"hard disk drive"},
-		"url":  {"uniform resource locator"},
-		"http": {"hypertext transfer protocol"},
+		"ai":    {"artificial intelligence"},
+		"ml":    {"machine learning"},
+		"nlp":   {"natural language processing"},
+		"api":   {"application programming interface"},
+		"ui":    {"user interface"},
+		"ux":    {"user experience"},
+		"db":    {"database"},
+		"os":    {"operating system"},
+		"cpu":   {"central processing unit"},
+		"gpu":   {"graphics processing unit"},
+		"ram":   {"random access memory"},
+		"ssd":   {"solid state drive"},
+		"hdd":   {"hard disk drive"},
+		"url":   {"uniform resource locator"},
+		"http":  {"hypertext transfer protocol"},
 		"https": {"hypertext transfer protocol secure"},
-		"ftp":  {"file transfer protocol"},
-		"ssh":  {"secure shell"},
-		"sql":  {"structured query language"},
-		"json": {"javascript object notation"},
-		"xml":  {"extensible markup language"},
-		"html": {"hypertext markup language"},
-		"css":  {"cascading style sheets"},
-		"js":   {"javascript"},
-		"ts":   {"typescript"},
+		"ftp":   {"file transfer protocol"},
+		"ssh":   {"secure shell"},
+		"sql":   {"structured query language"},
+		"json":  {"javascript object notation"},
+		"xml":   {"extensible markup language"},
+		"html":  {"hypertext markup language"},
+		"css":   {"cascading style sheets"},
+		"js":    {"javascript"},
+		"ts":    {"typescript"},
 	}
 
 	queryLower := strings.ToLower(query)

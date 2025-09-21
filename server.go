@@ -6,17 +6,20 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // AgenticMemoryServer wraps the MCP server with memory engine capabilities
 type AgenticMemoryServer struct {
-	server       *mcp.Server
-	config       *ServerConfig
-	mu           sync.RWMutex
-	isRunning    bool
-	shutdownChan chan struct{}
+	server        *mcp.Server
+	config        *ServerConfig
+	recallHandler *RecallHandler
+	writeHandler  *WriteHandler
+	mu            sync.RWMutex
+	isRunning     bool
+	shutdownChan  chan struct{}
 }
 
 // NewAgenticMemoryServer creates a new MCP server with memory capabilities
@@ -39,6 +42,34 @@ func NewAgenticMemoryServer(config *ServerConfig) (*AgenticMemoryServer, error) 
 		config:       config,
 		shutdownChan: make(chan struct{}),
 	}
+
+	// Initialize handlers
+	queryProcessor := NewQueryProcessor(nil)
+	resultFuser := NewResultFuser()
+	ams.recallHandler = NewRecallHandler(queryProcessor, resultFuser)
+
+	// Initialize write handler
+	contentProcessor := NewContentProcessor()
+	// Initialize storage components
+	vectorStore := NewMockVectorStore()
+	graphStore := NewMockGraphStore()
+	searchIndex := NewMockSearchIndex()
+	storageConfig := &MultiViewStorageConfig{
+		VectorStore: VectorStoreConfig{
+			Provider:   "mock",
+			Dimensions: 1536,
+		},
+		GraphStore: GraphStoreConfig{
+			Provider: "mock",
+		},
+		SearchIndex: SearchIndexConfig{
+			Provider: "mock",
+		},
+		Timeout: 10 * time.Second,
+	}
+	storage := NewMultiViewStorage(vectorStore, graphStore, searchIndex, storageConfig)
+	memoryWriter := NewMemoryWriter(storage, contentProcessor, nil)
+	ams.writeHandler = NewWriteHandler(memoryWriter, contentProcessor)
 
 	// Register MCP tools
 	if err := ams.registerTools(); err != nil {

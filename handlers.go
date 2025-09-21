@@ -10,11 +10,11 @@ import (
 
 // Tool argument structures following MCP SDK patterns
 type RecallArgs struct {
-	Query       string                 `json:"query" jsonschema:"Query to search for in memory"`
-	MaxResults  int                    `json:"maxResults,omitempty" jsonschema:"Maximum number of results to return"`
-	TimeBudget  int                    `json:"timeBudget,omitempty" jsonschema:"Time budget in milliseconds"`
-	Filters     map[string]interface{} `json:"filters,omitempty" jsonschema:"Additional filters to apply"`
-	IncludeGraph bool                  `json:"includeGraph,omitempty" jsonschema:"Include graph relationships in response"`
+	Query        string                 `json:"query" jsonschema:"Query to search for in memory"`
+	MaxResults   int                    `json:"maxResults,omitempty" jsonschema:"Maximum number of results to return"`
+	TimeBudget   int                    `json:"timeBudget,omitempty" jsonschema:"Time budget in milliseconds"`
+	Filters      map[string]interface{} `json:"filters,omitempty" jsonschema:"Additional filters to apply"`
+	IncludeGraph bool                   `json:"includeGraph,omitempty" jsonschema:"Include graph relationships in response"`
 }
 
 type WriteArgs struct {
@@ -55,10 +55,10 @@ type WriteResult struct {
 }
 
 type ManageResult struct {
-	Operation      string `json:"operation"`
-	AffectedCount  int    `json:"affectedCount"`
-	Success        bool   `json:"success"`
-	Message        string `json:"message"`
+	Operation     string `json:"operation"`
+	AffectedCount int    `json:"affectedCount"`
+	Success       bool   `json:"success"`
+	Message       string `json:"message"`
 }
 
 type StatsResult struct {
@@ -72,13 +72,13 @@ type StatsResult struct {
 
 // Placeholder data structures (will be implemented in later tasks)
 type Evidence struct {
-	Content     string             `json:"content"`
-	Source      string             `json:"source"`
-	Confidence  float64            `json:"confidence"`
-	WhySelected string             `json:"why_selected"`
-	RelationMap map[string]string  `json:"relation_map"`
-	Provenance  ProvenanceInfo     `json:"provenance"`
-	GraphPath   []string           `json:"graph_path,omitempty"`
+	Content     string            `json:"content"`
+	Source      string            `json:"source"`
+	Confidence  float64           `json:"confidence"`
+	WhySelected string            `json:"why_selected"`
+	RelationMap map[string]string `json:"relation_map"`
+	Provenance  ProvenanceInfo    `json:"provenance"`
+	GraphPath   []string          `json:"graph_path,omitempty"`
 }
 
 type CommunityCard struct {
@@ -90,11 +90,11 @@ type CommunityCard struct {
 }
 
 type ConflictInfo struct {
-	ID            string   `json:"id"`
-	Type          string   `json:"type"`
-	Description   string   `json:"description"`
+	ID             string   `json:"id"`
+	Type           string   `json:"type"`
+	Description    string   `json:"description"`
 	ConflictingIDs []string `json:"conflicting_ids"`
-	Severity      string   `json:"severity"`
+	Severity       string   `json:"severity"`
 }
 
 type RetrievalStats struct {
@@ -145,9 +145,14 @@ func (ams *AgenticMemoryServer) registerTools() error {
 
 // handleRecall handles memory recall requests
 func (ams *AgenticMemoryServer) handleRecall(ctx context.Context, req *mcp.CallToolRequest, args RecallArgs) (*mcp.CallToolResult, RecallResult, error) {
+	// Use the dedicated recall handler if available
+	if ams.recallHandler != nil {
+		return ams.recallHandler.HandleRecall(ctx, req, args)
+	}
+
+	// Fallback to placeholder implementation
 	log.Printf("Handling recall request: query=%s, maxResults=%d", args.Query, args.MaxResults)
 
-	// Placeholder implementation - will be replaced with actual memory engine
 	result := RecallResult{
 		Evidence: []Evidence{
 			{
@@ -187,9 +192,14 @@ func (ams *AgenticMemoryServer) handleRecall(ctx context.Context, req *mcp.CallT
 
 // handleWrite handles memory write requests
 func (ams *AgenticMemoryServer) handleWrite(ctx context.Context, req *mcp.CallToolRequest, args WriteArgs) (*mcp.CallToolResult, WriteResult, error) {
+	// Use the dedicated write handler if available
+	if ams.writeHandler != nil {
+		return ams.writeHandler.HandleWrite(ctx, req, args)
+	}
+
+	// Fallback to placeholder implementation
 	log.Printf("Handling write request: content length=%d, source=%s", len(args.Content), args.Source)
 
-	// Placeholder implementation - will be replaced with actual memory engine
 	result := WriteResult{
 		MemoryID:       fmt.Sprintf("mem_%d", len(args.Content)),
 		CandidateCount: 1,
@@ -245,9 +255,9 @@ func (ams *AgenticMemoryServer) handleStats(ctx context.Context, req *mcp.CallTo
 			"search_index": "0 MB",
 		},
 		PerformanceStats: map[string]interface{}{
-			"avg_query_time":    "0ms",
-			"cache_hit_rate":    "0%",
-			"memory_usage":      "0 MB",
+			"avg_query_time":     "0ms",
+			"cache_hit_rate":     "0%",
+			"memory_usage":       "0 MB",
 			"active_connections": 0,
 		},
 	}

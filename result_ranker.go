@@ -15,36 +15,36 @@ type ResultRanker struct {
 
 // ResultRankerConfig holds configuration for result ranking
 type ResultRankerConfig struct {
-	RelevanceWeight    float64 `json:"relevance_weight"`     // Weight for relevance score
-	FreshnessWeight    float64 `json:"freshness_weight"`     // Weight for recency
-	AuthorityWeight    float64 `json:"authority_weight"`     // Weight for source authority
-	DiversityWeight    float64 `json:"diversity_weight"`     // Weight for result diversity
-	QualityWeight      float64 `json:"quality_weight"`       // Weight for content quality
+	RelevanceWeight       float64 `json:"relevance_weight"`       // Weight for relevance score
+	FreshnessWeight       float64 `json:"freshness_weight"`       // Weight for recency
+	AuthorityWeight       float64 `json:"authority_weight"`       // Weight for source authority
+	DiversityWeight       float64 `json:"diversity_weight"`       // Weight for result diversity
+	QualityWeight         float64 `json:"quality_weight"`         // Weight for content quality
 	PersonalizationWeight float64 `json:"personalization_weight"` // Weight for personalization
-	BoostThreshold     float64 `json:"boost_threshold"`      // Threshold for score boosting
-	PenaltyThreshold   float64 `json:"penalty_threshold"`    // Threshold for score penalty
-	MaxResults         int     `json:"max_results"`          // Maximum results to rank
-	DiversityRadius    float64 `json:"diversity_radius"`     // Radius for diversity calculation
+	BoostThreshold        float64 `json:"boost_threshold"`        // Threshold for score boosting
+	PenaltyThreshold      float64 `json:"penalty_threshold"`      // Threshold for score penalty
+	MaxResults            int     `json:"max_results"`            // Maximum results to rank
+	DiversityRadius       float64 `json:"diversity_radius"`       // Radius for diversity calculation
 }
 
 // RankableResult represents a result that can be ranked
 type RankableResult struct {
-	ID              string                 `json:"id"`
-	Content         string                 `json:"content"`
-	BaseScore       float64                `json:"base_score"`
-	RelevanceScore  float64                `json:"relevance_score"`
-	FreshnessScore  float64                `json:"freshness_score"`
-	AuthorityScore  float64                `json:"authority_score"`
-	QualityScore    float64                `json:"quality_score"`
-	DiversityScore  float64                `json:"diversity_score"`
-	PersonalizationScore float64           `json:"personalization_score"`
-	FinalScore      float64                `json:"final_score"`
-	Rank            int                    `json:"rank"`
-	Boosts          []string               `json:"boosts,omitempty"`
-	Penalties       []string               `json:"penalties,omitempty"`
-	Metadata        map[string]interface{} `json:"metadata"`
-	Timestamp       time.Time              `json:"timestamp,omitempty"`
-	Source          string                 `json:"source,omitempty"`
+	ID                   string                 `json:"id"`
+	Content              string                 `json:"content"`
+	BaseScore            float64                `json:"base_score"`
+	RelevanceScore       float64                `json:"relevance_score"`
+	FreshnessScore       float64                `json:"freshness_score"`
+	AuthorityScore       float64                `json:"authority_score"`
+	QualityScore         float64                `json:"quality_score"`
+	DiversityScore       float64                `json:"diversity_score"`
+	PersonalizationScore float64                `json:"personalization_score"`
+	FinalScore           float64                `json:"final_score"`
+	Rank                 int                    `json:"rank"`
+	Boosts               []string               `json:"boosts,omitempty"`
+	Penalties            []string               `json:"penalties,omitempty"`
+	Metadata             map[string]interface{} `json:"metadata"`
+	Timestamp            time.Time              `json:"timestamp,omitempty"`
+	Source               string                 `json:"source,omitempty"`
 }
 
 // RankingContext provides context for ranking decisions
@@ -67,12 +67,12 @@ type RankingResponse struct {
 
 // RankingStats contains statistics about the ranking process
 type RankingStats struct {
-	RankingTime     float64            `json:"ranking_time_ms"`
+	RankingTime       float64            `json:"ranking_time_ms"`
 	ScoreDistribution map[string]float64 `json:"score_distribution"`
-	BoostCount      int                `json:"boost_count"`
-	PenaltyCount    int                `json:"penalty_count"`
-	DiversityMetric float64            `json:"diversity_metric"`
-	QualityMetric   float64            `json:"quality_metric"`
+	BoostCount        int                `json:"boost_count"`
+	PenaltyCount      int                `json:"penalty_count"`
+	DiversityMetric   float64            `json:"diversity_metric"`
+	QualityMetric     float64            `json:"quality_metric"`
 }
 
 // NewResultRanker creates a new ResultRanker with default configuration
@@ -289,7 +289,7 @@ func (rr *ResultRanker) calculateFreshnessScore(result *RankableResult, context 
 }
 
 // calculateAuthorityScore calculates authority score based on source credibility
-func (rr *ResultRanker) calculateAuthorityScore(result *RankableResult, context *RankingContext) {
+func (rr *ResultRanker) calculateAuthorityScore(result *RankableResult, _ *RankingContext) {
 	// Default authority score
 	result.AuthorityScore = 0.5
 
@@ -313,7 +313,7 @@ func (rr *ResultRanker) calculateAuthorityScore(result *RankableResult, context 
 }
 
 // calculateQualityScore calculates content quality score
-func (rr *ResultRanker) calculateQualityScore(result *RankableResult, context *RankingContext) {
+func (rr *ResultRanker) calculateQualityScore(result *RankableResult, _ *RankingContext) {
 	// Start with base quality
 	qualityScore := 0.5
 
@@ -347,7 +347,7 @@ func (rr *ResultRanker) calculatePersonalizationScore(result *RankableResult, co
 	// Default neutral score
 	result.PersonalizationScore = 0.5
 
-	if context.UserPreferences == nil || len(context.UserPreferences) == 0 {
+	if len(context.UserPreferences) == 0 {
 		return
 	}
 
@@ -375,7 +375,7 @@ func (rr *ResultRanker) calculatePersonalizationScore(result *RankableResult, co
 }
 
 // calculateDiversityScores calculates diversity scores for all results
-func (rr *ResultRanker) calculateDiversityScores(results []RankableResult, context *RankingContext) {
+func (rr *ResultRanker) calculateDiversityScores(results []RankableResult, _ *RankingContext) {
 	if len(results) <= 1 {
 		for i := range results {
 			results[i].DiversityScore = 1.0
@@ -460,7 +460,7 @@ func (rr *ResultRanker) calculateContentSimilarity(content1, content2 string) fl
 func (rr *ResultRanker) tokenizeContent(content string) []string {
 	// Simple tokenization - split on whitespace and convert to lowercase
 	words := strings.Fields(strings.ToLower(content))
-	
+
 	// Filter out very short words
 	var filtered []string
 	for _, word := range words {
@@ -484,8 +484,8 @@ func (rr *ResultRanker) calculateFinalScore(result *RankableResult) {
 	finalScore += result.PersonalizationScore * rr.config.PersonalizationWeight
 
 	// Normalize by total weight
-	totalWeight := rr.config.RelevanceWeight + rr.config.FreshnessWeight + 
-		rr.config.AuthorityWeight + rr.config.QualityWeight + 
+	totalWeight := rr.config.RelevanceWeight + rr.config.FreshnessWeight +
+		rr.config.AuthorityWeight + rr.config.QualityWeight +
 		rr.config.DiversityWeight + rr.config.PersonalizationWeight
 
 	if totalWeight > 0 {
@@ -496,7 +496,7 @@ func (rr *ResultRanker) calculateFinalScore(result *RankableResult) {
 }
 
 // applyBoostsAndPenalties applies score boosts and penalties based on various factors
-func (rr *ResultRanker) applyBoostsAndPenalties(result *RankableResult, context *RankingContext) {
+func (rr *ResultRanker) applyBoostsAndPenalties(result *RankableResult, _ *RankingContext) {
 	originalScore := result.FinalScore
 
 	// Apply boosts
