@@ -64,13 +64,13 @@ func BenchmarkRRFAlgorithm(b *testing.B) {
 			// Create fusion inputs
 			inputs := []FusionInput{
 				{
-					Method: "vector",
-					Weight: 1.0,
+					Method:  "vector",
+					Weight:  1.0,
 					Results: make([]FusionItem, size),
 				},
 				{
-					Method: "keyword",
-					Weight: 1.0,
+					Method:  "keyword",
+					Weight:  1.0,
 					Results: make([]FusionItem, size),
 				},
 			}
@@ -84,7 +84,7 @@ func BenchmarkRRFAlgorithm(b *testing.B) {
 					Rank:    i + 1,
 				}
 				inputs[1].Results[i] = FusionItem{
-					ID:      fmt.Sprintf("doc_%d", (size-1-i)), // Reverse order
+					ID:      fmt.Sprintf("doc_%d", (size - 1 - i)), // Reverse order
 					Content: fmt.Sprintf("Document %d", (size - 1 - i)),
 					Score:   0.8 - float64(i)*0.001,
 					Rank:    i + 1,
@@ -122,7 +122,7 @@ func BenchmarkResultRanking(b *testing.B) {
 					Source:    fmt.Sprintf("source_%d", i%10),
 					Timestamp: now.Add(-time.Duration(i) * time.Hour),
 					Metadata: map[string]interface{}{
-						"title":          fmt.Sprintf("Document %d Title", i),
+						"title":           fmt.Sprintf("Document %d Title", i),
 						"authority_score": 0.8 - float64(i%10)*0.05,
 						"quality_score":   0.7 + float64(i%5)*0.05,
 					},
@@ -164,11 +164,12 @@ func BenchmarkDiversityCalculation(b *testing.B) {
 			// Generate test data with varying similarity
 			for i := 0; i < size; i++ {
 				var content string
-				if i%3 == 0 {
+				switch i % 3 {
+				case 0:
 					content = "Machine learning algorithms and neural networks for artificial intelligence"
-				} else if i%3 == 1 {
+				case 1:
 					content = "Deep learning systems and computer vision applications in modern AI"
-				} else {
+				default:
 					content = fmt.Sprintf("Unique document %d about different topics and specialized content", i)
 				}
 
@@ -205,11 +206,11 @@ func BenchmarkEvidenceAssembly(b *testing.B) {
 			// Generate test data
 			for i := 0; i < size; i++ {
 				inputs[i] = AssemblyInput{
-					ID:      fmt.Sprintf("doc_%d", i),
-					Content: fmt.Sprintf("This is comprehensive document %d about machine learning algorithms and their applications in artificial intelligence systems with detailed explanations and examples", i),
-					Score:   0.9 - float64(i)*0.001,
-					Source:  fmt.Sprintf("source_%d", i%10),
-					Timestamp: now.Add(-time.Duration(i) * time.Hour),
+					ID:           fmt.Sprintf("doc_%d", i),
+					Content:      fmt.Sprintf("This is comprehensive document %d about machine learning algorithms and their applications in artificial intelligence systems with detailed explanations and examples", i),
+					Score:        0.9 - float64(i)*0.001,
+					Source:       fmt.Sprintf("source_%d", i%10),
+					Timestamp:    now.Add(-time.Duration(i) * time.Hour),
 					MatchedTerms: []string{"machine", "learning", "algorithms"},
 					RelatedEntities: []string{
 						fmt.Sprintf("entity_%d", i%5),
@@ -446,10 +447,10 @@ func BenchmarkMemoryUsage(b *testing.B) {
 				Score:        0.85 - float64(i)*0.0001,
 				MatchedTerms: []string{"machine", "learning", "neural", "networks"},
 				Metadata: map[string]interface{}{
-					"type":     "keyword",
-					"index":    i,
-					"matches":  4,
-					"bm25":     0.75,
+					"type":    "keyword",
+					"index":   i,
+					"matches": 4,
+					"bm25":    0.75,
 				},
 			}
 		}

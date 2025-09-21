@@ -15,16 +15,16 @@ type EvidenceAssembler struct {
 
 // EvidenceAssemblerConfig holds configuration for evidence assembly
 type EvidenceAssemblerConfig struct {
-	MaxEvidenceItems    int     `json:"max_evidence_items"`     // Maximum evidence items to create
-	MinConfidence       float64 `json:"min_confidence"`         // Minimum confidence threshold
-	RequireProvenance   bool    `json:"require_provenance"`     // Whether provenance is required
-	IncludeRelationMaps bool    `json:"include_relation_maps"`  // Whether to include relation maps
-	IncludeGraphPaths   bool    `json:"include_graph_paths"`    // Whether to include graph paths
-	MaxContentLength    int     `json:"max_content_length"`     // Maximum content length per evidence
-	WhySelectedDetail   string  `json:"why_selected_detail"`    // Level of detail for why_selected ("basic", "detailed", "verbose")
-	ValidateEvidence    bool    `json:"validate_evidence"`      // Whether to validate evidence
-	DeduplicateContent  bool    `json:"deduplicate_content"`    // Whether to deduplicate similar content
-	SimilarityThreshold float64 `json:"similarity_threshold"`   // Threshold for content similarity
+	MaxEvidenceItems    int     `json:"max_evidence_items"`    // Maximum evidence items to create
+	MinConfidence       float64 `json:"min_confidence"`        // Minimum confidence threshold
+	RequireProvenance   bool    `json:"require_provenance"`    // Whether provenance is required
+	IncludeRelationMaps bool    `json:"include_relation_maps"` // Whether to include relation maps
+	IncludeGraphPaths   bool    `json:"include_graph_paths"`   // Whether to include graph paths
+	MaxContentLength    int     `json:"max_content_length"`    // Maximum content length per evidence
+	WhySelectedDetail   string  `json:"why_selected_detail"`   // Level of detail for why_selected ("basic", "detailed", "verbose")
+	ValidateEvidence    bool    `json:"validate_evidence"`     // Whether to validate evidence
+	DeduplicateContent  bool    `json:"deduplicate_content"`   // Whether to deduplicate similar content
+	SimilarityThreshold float64 `json:"similarity_threshold"`  // Threshold for content similarity
 }
 
 // AssemblyContext provides context for evidence assembly
@@ -41,11 +41,11 @@ type AssemblyContext struct {
 
 // GraphContext provides graph-related context for evidence assembly
 type GraphContext struct {
-	QueryEntities   []string              `json:"query_entities"`
-	RelatedEntities []string              `json:"related_entities"`
-	GraphPaths      []Path                `json:"graph_paths,omitempty"`
-	Communities     []Community           `json:"communities,omitempty"`
-	PageRankScores  map[string]float64    `json:"pagerank_scores,omitempty"`
+	QueryEntities   []string           `json:"query_entities"`
+	RelatedEntities []string           `json:"related_entities"`
+	GraphPaths      []Path             `json:"graph_paths,omitempty"`
+	Communities     []Community        `json:"communities,omitempty"`
+	PageRankScores  map[string]float64 `json:"pagerank_scores,omitempty"`
 }
 
 // AssemblyInput represents input for evidence assembly
@@ -63,22 +63,22 @@ type AssemblyInput struct {
 
 // AssemblyResponse contains the assembled evidence and statistics
 type AssemblyResponse struct {
-	Evidence        []Evidence             `json:"evidence"`
-	TotalEvidence   int                    `json:"total_evidence"`
-	AssemblyStats   AssemblyStats          `json:"assembly_stats"`
-	Metadata        map[string]interface{} `json:"metadata"`
+	Evidence      []Evidence             `json:"evidence"`
+	TotalEvidence int                    `json:"total_evidence"`
+	AssemblyStats AssemblyStats          `json:"assembly_stats"`
+	Metadata      map[string]interface{} `json:"metadata"`
 }
 
 // AssemblyStats contains statistics about the assembly process
 type AssemblyStats struct {
-	AssemblyTime        float64            `json:"assembly_time_ms"`
-	InputCount          int                `json:"input_count"`
-	ValidatedCount      int                `json:"validated_count"`
-	DeduplicatedCount   int                `json:"deduplicated_count"`
-	ProvenanceCount     int                `json:"provenance_count"`
-	RelationMapCount    int                `json:"relation_map_count"`
-	GraphPathCount      int                `json:"graph_path_count"`
-	ConfidenceDistribution map[string]int  `json:"confidence_distribution"`
+	AssemblyTime           float64        `json:"assembly_time_ms"`
+	InputCount             int            `json:"input_count"`
+	ValidatedCount         int            `json:"validated_count"`
+	DeduplicatedCount      int            `json:"deduplicated_count"`
+	ProvenanceCount        int            `json:"provenance_count"`
+	RelationMapCount       int            `json:"relation_map_count"`
+	GraphPathCount         int            `json:"graph_path_count"`
+	ConfidenceDistribution map[string]int `json:"confidence_distribution"`
 }
 
 // NewEvidenceAssembler creates a new EvidenceAssembler with default configuration
@@ -317,7 +317,7 @@ func (ea *EvidenceAssembler) createEvidence(input AssemblyInput, assemblyCtx *As
 }
 
 // generateWhySelected generates explanation for why evidence was selected
-func (ea *EvidenceAssembler) generateWhySelected(input AssemblyInput, assemblyCtx *AssemblyContext) string {
+func (ea *EvidenceAssembler) generateWhySelected(input AssemblyInput, _ *AssemblyContext) string {
 	var reasons []string
 
 	// Add score-based reason
@@ -338,7 +338,7 @@ func (ea *EvidenceAssembler) generateWhySelected(input AssemblyInput, assemblyCt
 			if len(input.MatchedTerms) <= 3 {
 				reasons = append(reasons, fmt.Sprintf("matches terms: %s", strings.Join(input.MatchedTerms, ", ")))
 			} else {
-				reasons = append(reasons, fmt.Sprintf("matches %d terms including: %s", 
+				reasons = append(reasons, fmt.Sprintf("matches %d terms including: %s",
 					len(input.MatchedTerms), strings.Join(input.MatchedTerms[:3], ", ")))
 			}
 		case "verbose":
@@ -526,7 +526,7 @@ func (ea *EvidenceAssembler) calculateContentSimilarity(content1, content2 strin
 func (ea *EvidenceAssembler) tokenizeContent(content string) []string {
 	// Simple tokenization - split on whitespace and convert to lowercase
 	words := strings.Fields(strings.ToLower(content))
-	
+
 	// Filter out very short words
 	var filtered []string
 	for _, word := range words {
