@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -180,12 +181,12 @@ func TestRecallArgsValidatorValidateDetailed(t *testing.T) {
 			Convey("Then result should be invalid with multiple errors", func() {
 				So(result.Valid, ShouldBeFalse)
 				So(result.Errors, ShouldHaveLength, 3)
-				
+
 				errorMessages := make([]string, len(result.Errors))
 				for i, err := range result.Errors {
 					errorMessages[i] = err.Message
 				}
-				
+
 				So(errorMessages, ShouldContain, "query cannot be empty")
 				So(errorMessages, ShouldContain, "maxResults cannot be negative")
 				So(errorMessages, ShouldContain, "timeBudget cannot be negative")
@@ -203,7 +204,7 @@ func TestRecallArgsValidatorValidateDetailed(t *testing.T) {
 			Convey("Then it should detect blocked patterns", func() {
 				So(result.Valid, ShouldBeFalse)
 				So(len(result.Errors), ShouldBeGreaterThan, 0)
-				
+
 				hasBlockedPatternError := false
 				for _, err := range result.Errors {
 					if err.Message == "query contains blocked pattern: <script" {
@@ -334,8 +335,8 @@ func TestRecallArgsValidatorSanitizeInput(t *testing.T) {
 
 			Convey("Then defaults should be applied", func() {
 				So(err, ShouldBeNil)
-				So(sanitized.MaxResults, ShouldEqual, 10)    // default
-				So(sanitized.TimeBudget, ShouldEqual, 5000)  // default
+				So(sanitized.MaxResults, ShouldEqual, 10)   // default
+				So(sanitized.TimeBudget, ShouldEqual, 5000) // default
 			})
 		})
 	})
@@ -360,6 +361,27 @@ func TestRecallArgsValidatorSanitizeQuery(t *testing.T) {
 
 			Convey("Then HTML should be escaped", func() {
 				So(sanitized, ShouldEqual, "&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;")
+			})
+		})
+
+		Convey("When validating query with invalid UTF-8", func() {
+			invalidUTF8 := string([]byte{0xff, 0xfe, 0xfd})
+			args := RecallArgs{
+				Query: invalidUTF8,
+			}
+
+			Convey("Then validation should fail", func() {
+				result := validator.ValidateDetailed(args)
+				So(result.Valid, ShouldBeFalse)
+				So(len(result.Errors), ShouldBeGreaterThan, 0)
+				errorFound := false
+				for _, err := range result.Errors {
+					if strings.Contains(err.Message, "UTF-8") {
+						errorFound = true
+						break
+					}
+				}
+				So(errorFound, ShouldBeTrue)
 			})
 		})
 

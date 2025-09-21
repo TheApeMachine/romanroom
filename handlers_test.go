@@ -34,6 +34,11 @@ func TestHandleRecall(t *testing.T) {
 				So(recallResult.Evidence, ShouldNotBeNil) // Can be empty with mock storage
 				So(recallResult.Stats, ShouldNotBeNil)
 				So(recallResult.Stats.TotalCandidates, ShouldBeGreaterThanOrEqualTo, 0)
+				// Verify MCP content structure
+				So(len(result.Content), ShouldBeGreaterThan, 0)
+				textContent, ok := result.Content[0].(*mcp.TextContent)
+				So(ok, ShouldBeTrue)
+				So(textContent.Text, ShouldNotBeEmpty)
 			})
 		})
 

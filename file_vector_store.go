@@ -65,7 +65,7 @@ func (f *FileVectorStore) Search(ctx context.Context, query []float32, k int, fi
 		return nil, fmt.Errorf("vector store is closed")
 	}
 
-	var results []VectorResult
+	results := make([]VectorResult, 0, len(f.vectors))
 
 	for _, record := range f.vectors {
 		// Apply filters

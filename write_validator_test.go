@@ -297,7 +297,7 @@ func TestWriteArgsValidator(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(sanitized.Content, ShouldEqual, "Valid content with extra spaces")
 				So(sanitized.Source, ShouldEqual, "test_source")
-				So(len(sanitized.Tags), ShouldEqual, 2) // Empty tag removed
+				So(len(sanitized.Tags), ShouldEqual, 2)    // Empty tag removed
 				So(sanitized.Tags[0], ShouldEqual, "tag1") // Lowercase and trimmed
 				So(sanitized.Tags[1], ShouldEqual, "tag2")
 			})
@@ -437,7 +437,7 @@ func TestWriteValidatorEdgeCases(t *testing.T) {
 
 			sanitized, err := validator.SanitizeInput(args)
 			So(err, ShouldBeNil)
-			
+
 			// Spaces should be removed, hyphens and underscores preserved
 			So(sanitized.Tags[0], ShouldEqual, "tag-with-hyphens")
 			So(sanitized.Tags[1], ShouldEqual, "tag_with_underscores")
@@ -454,7 +454,7 @@ func TestWriteValidatorEdgeCases(t *testing.T) {
 
 			sanitized, err := validator.SanitizeInput(args)
 			So(err, ShouldBeNil)
-			
+
 			// Control characters should be removed
 			So(sanitized.Content, ShouldNotContainSubstring, "\x00")
 			So(sanitized.Content, ShouldNotContainSubstring, "\x01")
@@ -480,6 +480,15 @@ func TestWriteValidatorEdgeCases(t *testing.T) {
 				So(err, ShouldNotBeNil)
 				So(err.Error(), ShouldContainSubstring, "blocked pattern")
 			}
+		})
+
+		Convey("Should not block substrings like 'metadata:'", func() {
+			args := WriteArgs{
+				Content: "Discuss metadata: structure and usage",
+				Source:  "blocked_test",
+			}
+			err := validator.Validate(args)
+			So(err, ShouldBeNil)
 		})
 
 		Convey("Should handle nil metadata gracefully", func() {

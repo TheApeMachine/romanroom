@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -101,13 +102,25 @@ func (rh *RecallHandler) HandleRecall(ctx context.Context, req *mcp.CallToolRequ
 	result.Stats.QueryTime = time.Since(startTime).Milliseconds()
 
 	// Create MCP result
-	mcpResult := &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Text: fmt.Sprintf("Retrieved %d pieces of evidence for query: %s",
-					len(result.Evidence), args.Query),
-			},
+	// Create MCP response with both text summary and structured JSON
+	content := []mcp.Content{
+		&mcp.TextContent{
+			Text: fmt.Sprintf("Retrieved %d pieces of evidence for query: %s",
+				len(result.Evidence), args.Query),
 		},
+	}
+
+	// Add structured JSON content if marshaling succeeds
+	if jsonData, err := json.Marshal(result); err == nil {
+		content = append(content, &mcp.TextContent{
+			Text: string(jsonData),
+		})
+	} else {
+		log.Printf("warning: failed to marshal recall result to JSON: %v", err)
+	}
+
+	mcpResult := &mcp.CallToolResult{
+		Content: content,
 	}
 
 	log.Printf("Recall completed in %v, returned %d evidence items",
@@ -301,7 +314,7 @@ func (rh *RecallHandler) convertFusedResultsToEvidence(fusedResults []FusedResul
 		// Create relation map from source methods
 		relationMap := make(map[string]string)
 		for _, method := range result.SourceMethods {
-			relationMap[method] = fmt.Sprintf("score_%.3f", result.MethodScores[method])
+			relationMap[method] = fmt.Sprintf("%.3f", result.MethodScores[method])
 		}
 
 		evidence[i] = Evidence{
@@ -384,8 +397,11 @@ func (rh *RecallHandler) detectConflicts(evidence []Evidence) []ConflictInfo {
 	}
 
 	// Look for evidence from different sources with significantly different confidence scores
-	for i := 0; i < len(evidence); i++ {
-		for j := i + 1; j < len(evidence); j++ {
+	const maxPairs = 5000 // ~100 items => 4950 pairs
+	count := 0
+	for i := 0; i < len(evidence) && count < maxPairs; i++ {
+		for j := i + 1; j < len(evidence) && count < maxPairs; j++ {
+			count++
 			if evidence[i].Source != evidence[j].Source {
 				confidenceDiff := evidence[i].Confidence - evidence[j].Confidence
 				if confidenceDiff > 0.5 || confidenceDiff < -0.5 {

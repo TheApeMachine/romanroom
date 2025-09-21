@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"hash/fnv"
 	"regexp"
 	"strings"
 	"time"
@@ -447,19 +448,9 @@ func (ee *EntityExtractor) looksLikeLocationName(word string) bool {
 // generateEntityID generates a unique ID for an entity using a hash-based approach
 // This prevents collisions that can occur with time-based IDs in fast tests
 func (ee *EntityExtractor) generateEntityID(entityType, entityName string) string {
-	// Use a combination of type, name, and current time with more entropy
-	input := fmt.Sprintf("%s:%s:%d:%d", entityType, entityName, time.Now().UnixNano(), time.Now().Unix())
-
-	// Simple hash to create a more unique ID
-	hash := 0
-	for _, c := range input {
-		hash = hash*31 + int(c)
-	}
-
-	// Make it positive and add more entropy
-	if hash < 0 {
-		hash = -hash
-	}
-
-	return fmt.Sprintf("%s_%d", entityType, hash)
+	h := fnv.New64a()
+	h.Write([]byte(entityType))
+	h.Write([]byte(entityName))
+	h.Write([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
+	return fmt.Sprintf("%s_%x", entityType, h.Sum64())
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -90,8 +91,8 @@ func (mvs *MultiViewStorage) StoreChunk(ctx context.Context, chunk *Chunk) error
 		if err := mvs.graphStore.CreateNode(timeoutCtx, node); err != nil {
 			// Node might already exist, try to update
 			if updateErr := mvs.graphStore.UpdateNode(timeoutCtx, node); updateErr != nil {
-				// If both create and update fail, it's likely a duplicate - just log and continue
-				// This is acceptable for testing scenarios
+				// If both create and update fail, it's likely a duplicate. Log as a warning.
+				log.Printf("warning: failed to create or update node %s: %v", node.ID, updateErr)
 			}
 		}
 	}
@@ -114,8 +115,8 @@ func (mvs *MultiViewStorage) StoreChunk(ctx context.Context, chunk *Chunk) error
 
 		if err := mvs.graphStore.CreateNode(timeoutCtx, node); err != nil {
 			if updateErr := mvs.graphStore.UpdateNode(timeoutCtx, node); updateErr != nil {
-				// If both create and update fail, it's likely a duplicate - just log and continue
-				// This is acceptable for testing scenarios
+				// If both create and update fail, it's likely a duplicate. Log as a warning.
+				log.Printf("warning: failed to create or update claim node %s: %v", node.ID, updateErr)
 			}
 		}
 	}

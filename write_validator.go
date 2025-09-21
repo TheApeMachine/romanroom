@@ -15,18 +15,18 @@ type WriteArgsValidator struct {
 
 // WriteValidatorConfig holds configuration for argument validation
 type WriteValidatorConfig struct {
-	MaxContentLength  int      `json:"max_content_length"`
-	MinContentLength  int      `json:"min_content_length"`
-	MaxSourceLength   int      `json:"max_source_length"`
-	MaxTagCount       int      `json:"max_tag_count"`
-	MaxTagLength      int      `json:"max_tag_length"`
-	RequireSource     bool     `json:"require_source"`
-	AllowedContentTypes []string `json:"allowed_content_types"`
-	BlockedPatterns   []string `json:"blocked_patterns"`
-	SanitizeHTML      bool     `json:"sanitize_html"`
-	ValidateUTF8      bool     `json:"validate_utf8"`
-	MaxMetadataKeys   int      `json:"max_metadata_keys"`
-	MaxMetadataValueLength int `json:"max_metadata_value_length"`
+	MaxContentLength       int      `json:"max_content_length"`
+	MinContentLength       int      `json:"min_content_length"`
+	MaxSourceLength        int      `json:"max_source_length"`
+	MaxTagCount            int      `json:"max_tag_count"`
+	MaxTagLength           int      `json:"max_tag_length"`
+	RequireSource          bool     `json:"require_source"`
+	AllowedContentTypes    []string `json:"allowed_content_types"`
+	BlockedPatterns        []string `json:"blocked_patterns"`
+	SanitizeHTML           bool     `json:"sanitize_html"`
+	ValidateUTF8           bool     `json:"validate_utf8"`
+	MaxMetadataKeys        int      `json:"max_metadata_keys"`
+	MaxMetadataValueLength int      `json:"max_metadata_value_length"`
 }
 
 // WriteValidationError represents a validation error with details
@@ -58,10 +58,15 @@ func NewWriteArgsValidator() *WriteArgsValidator {
 		MaxTagLength:        50,
 		RequireSource:       true,
 		AllowedContentTypes: []string{"text/plain", "text/markdown", "text/html", "application/json"},
-		BlockedPatterns:     []string{`<script`, `javascript:`, `data:`, `vbscript:`},
-		SanitizeHTML:        true,
-		ValidateUTF8:        true,
-		MaxMetadataKeys:     20,
+		BlockedPatterns: []string{
+			`(?i)<script[^>]*>`,
+			`(?i)\bjavascript:`,
+			`(?i)\bdata:(?:text|image|application)/`,
+			`(?i)\bvbscript:`,
+		},
+		SanitizeHTML:           true,
+		ValidateUTF8:           true,
+		MaxMetadataKeys:        20,
 		MaxMetadataValueLength: 500,
 	}
 
@@ -384,10 +389,12 @@ func (v *WriteArgsValidator) validateMetadata(metadata map[string]interface{}, r
 
 // checkBlockedPatterns checks for blocked patterns in content
 func (v *WriteArgsValidator) checkBlockedPatterns(content string, result *WriteValidationResult) {
-	lowerContent := strings.ToLower(content)
-	
 	for _, pattern := range v.config.BlockedPatterns {
-		if strings.Contains(lowerContent, strings.ToLower(pattern)) {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			continue // skip invalid pattern
+		}
+		if re.MatchString(content) {
 			result.Errors = append(result.Errors, WriteValidationError{
 				Field:   "content",
 				Message: fmt.Sprintf("content contains blocked pattern: %s", pattern),
@@ -474,7 +481,7 @@ func (v *WriteArgsValidator) sanitizeMetadata(metadata map[string]interface{}) m
 	}
 
 	sanitized := make(map[string]interface{})
-	
+
 	for key, value := range metadata {
 		if key != "" {
 			sanitizedValue := v.sanitizeMetadataValue(value)
@@ -542,6 +549,15 @@ func (v *WriteArgsValidator) validateMetadataValue(key string, value interface{}
 				return err
 			}
 		}
+	default:
+		// Fallback: validate stringified representation
+		s := fmt.Sprintf("%v", val)
+		if len(s) > v.config.MaxMetadataValueLength {
+			return fmt.Errorf("value exceeds maximum length of %d characters", v.config.MaxMetadataValueLength)
+		}
+		if v.config.ValidateUTF8 && !utf8.ValidString(s) {
+			return fmt.Errorf("value contains invalid UTF-8 characters")
+		}
 	}
 
 	return nil
@@ -598,7 +614,7 @@ func (v *WriteArgsValidator) UpdateConfig(config *WriteValidatorConfig) {
 // ValidateAndSanitize is a convenience method that validates and sanitizes in one call
 func (v *WriteArgsValidator) ValidateAndSanitize(args WriteArgs) (WriteArgs, []string, error) {
 	result := v.ValidateDetailed(args)
-	
+
 	if !result.Valid {
 		if len(result.Errors) > 0 {
 			return WriteArgs{}, result.Warnings, result.Errors[0]

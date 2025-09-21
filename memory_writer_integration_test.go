@@ -118,9 +118,7 @@ func TestMemoryWriterIntegration(t *testing.T) {
 			Convey("Then it should resolve and link entities", func() {
 				So(err, ShouldBeNil)
 				// EntitiesLinked may be nil or empty with mock data
-				if result.EntitiesLinked != nil {
-					So(len(result.EntitiesLinked), ShouldBeGreaterThanOrEqualTo, 0)
-				}
+				So(len(result.EntitiesLinked), ShouldBeGreaterThanOrEqualTo, 0)
 
 				// Verify entity linking created edges (if entities were linked)
 				if len(result.EntitiesLinked) > 0 {

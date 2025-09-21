@@ -50,7 +50,7 @@ func TestRecallE2EFixed(t *testing.T) {
 			})
 
 			Convey("And the MCP result should be properly formatted", func() {
-				So(mcpResult.Content, ShouldHaveLength, 1)
+				So(mcpResult.Content, ShouldHaveLength, 2) // Text summary + JSON
 				textContent, ok := mcpResult.Content[0].(*mcp.TextContent)
 				So(ok, ShouldBeTrue)
 				So(textContent.Text, ShouldContainSubstring, "Retrieved")
@@ -118,7 +118,9 @@ func TestRecallE2EFixed(t *testing.T) {
 					So(result.Stats.QueryTime, ShouldBeGreaterThanOrEqualTo, 0)
 
 					// Verify query is reflected in the response
-					textContent := mcpResult.Content[0].(*mcp.TextContent)
+					So(mcpResult.Content, ShouldHaveLength, 2) // Text summary + JSON
+					textContent, ok := mcpResult.Content[0].(*mcp.TextContent)
+					So(ok, ShouldBeTrue)
 					So(textContent.Text, ShouldContainSubstring, tc.query)
 				})
 			}

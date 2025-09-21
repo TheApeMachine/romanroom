@@ -115,11 +115,39 @@ func (er *EntityResolver) Link(ctx context.Context, entity Entity) (Entity, erro
 	return merged, nil
 }
 
+// extractEmbedding converts various decoded JSON forms to []float32
+func extractEmbedding(v interface{}) ([]float32, bool) {
+	switch t := v.(type) {
+	case []float32:
+		return t, len(t) > 0
+	case []float64:
+		out := make([]float32, len(t))
+		for i, f := range t {
+			out[i] = float32(f)
+		}
+		return out, len(out) > 0
+	case []interface{}:
+		out := make([]float32, 0, len(t))
+		for _, x := range t {
+			switch xv := x.(type) {
+			case float64:
+				out = append(out, float32(xv))
+			case float32:
+				out = append(out, xv)
+			}
+		}
+		if len(out) == len(t) && len(out) > 0 {
+			return out, true
+		}
+	}
+	return nil, false
+}
+
 // findSimilarEntities searches for entities similar to the target entity
 func (er *EntityResolver) findSimilarEntities(ctx context.Context, entity Entity) ([]Entity, error) {
 	// Check if entity has embedding for vector-based similarity
-	if embedding, hasEmbedding := entity.Properties["embedding"]; hasEmbedding {
-		if embeddingSlice, ok := embedding.([]float32); ok && len(embeddingSlice) > 0 {
+	if raw, ok := entity.Properties["embedding"]; ok {
+		if embeddingSlice, ok := extractEmbedding(raw); ok && len(embeddingSlice) > 0 {
 			return er.findEntitiesByEmbedding(ctx, embeddingSlice)
 		}
 	}
@@ -140,7 +168,15 @@ func (er *EntityResolver) findEntitiesByEmbedding(ctx context.Context, embedding
 
 	var candidates []Entity
 	for _, result := range vectorResults {
-		// Calculate cosine similarity using our method
+		// Enforce index/category filter defensively
+		if fmt.Sprintf("%v", result.Metadata["type"]) != "entity" {
+			continue
+		}
+		// Dimension guard
+		if len(result.Embedding) == 0 || len(result.Embedding) != len(embedding) {
+			continue
+		}
+		// Calculate cosine similarity
 		similarity := er.calculateCosineSimilarity(embedding, result.Embedding)
 
 		// Skip entities below similarity threshold
@@ -148,12 +184,27 @@ func (er *EntityResolver) findEntitiesByEmbedding(ctx context.Context, embedding
 			continue
 		}
 
+		// Safely extract metadata values
+		var name, entityType string
+		if n, ok := result.Metadata["name"].(string); ok {
+			name = n
+		}
+		if t, ok := result.Metadata["entity_type"].(string); ok {
+			entityType = t
+		}
+
+		// Carry embedding forward for downstream decisions
+		props := result.Metadata
+		if props == nil {
+			props = map[string]interface{}{}
+		}
+		props["embedding"] = result.Embedding
 		candidate := Entity{
 			ID:         result.ID,
-			Name:       fmt.Sprintf("%v", result.Metadata["name"]),
-			Type:       fmt.Sprintf("%v", result.Metadata["entity_type"]),
+			Name:       name,
+			Type:       entityType,
 			Confidence: similarity, // Use similarity as confidence
-			Properties: result.Metadata,
+			Properties: props,
 		}
 
 		candidates = append(candidates, candidate)
@@ -344,12 +395,19 @@ func (er *EntityResolver) mergeEntities(e1, e2 Entity) Entity {
 
 // createEntityLink creates a relationship edge between two entities
 func (er *EntityResolver) createEntityLink(ctx context.Context, entity1, entity2 Entity) error {
+	// Compute weight with vector similarity when possible
+	weight := er.calculateSimilarity(entity1, entity2)
+	if v1, ok1 := extractEmbedding(entity1.Properties["embedding"]); ok1 {
+		if v2, ok2 := extractEmbedding(entity2.Properties["embedding"]); ok2 && len(v1) == len(v2) {
+			weight = er.calculateCosineSimilarity(v1, v2)
+		}
+	}
 	edge := &Edge{
 		ID:     fmt.Sprintf("link_%s_%s", entity1.ID, entity2.ID),
 		From:   entity1.ID,
 		To:     entity2.ID,
 		Type:   RelatedTo,
-		Weight: er.calculateSimilarity(entity1, entity2),
+		Weight: weight,
 		Properties: map[string]interface{}{
 			"link_type":  "entity_resolution",
 			"created_by": "entity_resolver",
