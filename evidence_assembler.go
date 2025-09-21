@@ -107,27 +107,30 @@ func NewEvidenceAssemblerWithConfig(config *EvidenceAssemblerConfig) *EvidenceAs
 		return NewEvidenceAssembler()
 	}
 
+	// Create a new config to avoid modifying the original
+	newConfig := *config
+
 	// Set defaults for missing values
-	if config.MaxEvidenceItems <= 0 {
-		config.MaxEvidenceItems = 50
+	if newConfig.MaxEvidenceItems <= 0 {
+		newConfig.MaxEvidenceItems = 50
 	}
-	if config.MaxContentLength <= 0 {
-		config.MaxContentLength = 2000
+	if newConfig.MaxContentLength <= 0 {
+		newConfig.MaxContentLength = 2000
 	}
-	if config.WhySelectedDetail == "" {
-		config.WhySelectedDetail = "detailed"
+	if newConfig.WhySelectedDetail == "" {
+		newConfig.WhySelectedDetail = "detailed"
 	}
-	if config.SimilarityThreshold <= 0 {
-		config.SimilarityThreshold = 0.8
+	if newConfig.SimilarityThreshold <= 0 {
+		newConfig.SimilarityThreshold = 0.8
 	}
 
 	return &EvidenceAssembler{
-		config: config,
+		config: &newConfig,
 	}
 }
 
 // Assemble creates Evidence objects from assembly inputs
-func (ea *EvidenceAssembler) Assemble(ctx context.Context, inputs []AssemblyInput, context *AssemblyContext) (*AssemblyResponse, error) {
+func (ea *EvidenceAssembler) Assemble(ctx context.Context, inputs []AssemblyInput, assemblyCtx *AssemblyContext) (*AssemblyResponse, error) {
 	startTime := time.Now()
 
 	if len(inputs) == 0 {
@@ -139,14 +142,15 @@ func (ea *EvidenceAssembler) Assemble(ctx context.Context, inputs []AssemblyInpu
 		}, nil
 	}
 
-	if context == nil {
-		context = &AssemblyContext{
+	if assemblyCtx == nil {
+		assemblyCtx = &AssemblyContext{
 			RequestTime: time.Now(),
 		}
 	}
 
 	// Filter inputs by confidence threshold
 	filteredInputs := ea.filterByConfidence(inputs)
+	confidenceFilteredCount := len(filteredInputs)
 
 	// Deduplicate content if enabled
 	if ea.config.DeduplicateContent {
@@ -165,14 +169,14 @@ func (ea *EvidenceAssembler) Assemble(ctx context.Context, inputs []AssemblyInpu
 	}
 
 	for _, input := range filteredInputs {
-		evidenceItem, err := ea.createEvidence(input, context)
+		evidenceItem, err := ea.createEvidence(input, assemblyCtx)
 		if err != nil {
 			continue // Skip invalid evidence
 		}
 
 		// Add provenance if required (before validation)
 		if ea.config.RequireProvenance {
-			ea.AddProvenance(evidenceItem, input, context)
+			ea.AddProvenance(evidenceItem, input, assemblyCtx)
 			stats.ProvenanceCount++
 		}
 
@@ -186,7 +190,7 @@ func (ea *EvidenceAssembler) Assemble(ctx context.Context, inputs []AssemblyInpu
 
 		// Add relation maps if enabled
 		if ea.config.IncludeRelationMaps {
-			ea.addRelationMap(evidenceItem, input, context)
+			ea.addRelationMap(evidenceItem, input, assemblyCtx)
 			stats.RelationMapCount++
 		}
 
@@ -206,7 +210,7 @@ func (ea *EvidenceAssembler) Assemble(ctx context.Context, inputs []AssemblyInpu
 
 	// Calculate final statistics
 	stats.AssemblyTime = float64(time.Since(startTime).Nanoseconds()) / 1e6
-	stats.DeduplicatedCount = len(inputs) - len(filteredInputs)
+	stats.DeduplicatedCount = confidenceFilteredCount - len(filteredInputs)
 	stats.ConfidenceDistribution = ea.calculateConfidenceDistribution(evidence)
 
 	response := &AssemblyResponse{
@@ -218,22 +222,22 @@ func (ea *EvidenceAssembler) Assemble(ctx context.Context, inputs []AssemblyInpu
 
 	// Add metadata
 	response.Metadata["assembly_config"] = ea.config
-	response.Metadata["context_query"] = context.Query
-	response.Metadata["retrieval_method"] = context.RetrievalMethod
+	response.Metadata["context_query"] = assemblyCtx.Query
+	response.Metadata["retrieval_method"] = assemblyCtx.RetrievalMethod
 
 	return response, nil
 }
 
 // AddProvenance adds provenance information to evidence
-func (ea *EvidenceAssembler) AddProvenance(evidence *Evidence, input AssemblyInput, context *AssemblyContext) {
+func (ea *EvidenceAssembler) AddProvenance(evidence *Evidence, input AssemblyInput, assemblyCtx *AssemblyContext) {
 	provenance := ProvenanceInfo{
 		Source:    input.Source,
 		Timestamp: input.Timestamp.Format(time.RFC3339),
 		Version:   "1.0",
 	}
 
-	if context.UserID != "" {
-		provenance.UserID = context.UserID
+	if assemblyCtx.UserID != "" {
+		provenance.UserID = assemblyCtx.UserID
 	}
 
 	// Add additional provenance from metadata
@@ -292,7 +296,7 @@ func (ea *EvidenceAssembler) ValidateEvidence(evidence *Evidence) error {
 }
 
 // createEvidence creates an Evidence object from AssemblyInput
-func (ea *EvidenceAssembler) createEvidence(input AssemblyInput, context *AssemblyContext) (*Evidence, error) {
+func (ea *EvidenceAssembler) createEvidence(input AssemblyInput, assemblyCtx *AssemblyContext) (*Evidence, error) {
 	// Truncate content if too long
 	content := input.Content
 	if len(content) > ea.config.MaxContentLength {
@@ -303,7 +307,7 @@ func (ea *EvidenceAssembler) createEvidence(input AssemblyInput, context *Assemb
 		Content:     content,
 		Source:      input.Source,
 		Confidence:  input.Score,
-		WhySelected: ea.generateWhySelected(input, context),
+		WhySelected: ea.generateWhySelected(input, assemblyCtx),
 		RelationMap: make(map[string]string),
 		Provenance:  ProvenanceInfo{}, // Will be filled by AddProvenance
 		GraphPath:   []string{},       // Will be filled if available
@@ -313,7 +317,7 @@ func (ea *EvidenceAssembler) createEvidence(input AssemblyInput, context *Assemb
 }
 
 // generateWhySelected generates explanation for why evidence was selected
-func (ea *EvidenceAssembler) generateWhySelected(input AssemblyInput, context *AssemblyContext) string {
+func (ea *EvidenceAssembler) generateWhySelected(input AssemblyInput, assemblyCtx *AssemblyContext) string {
 	var reasons []string
 
 	// Add score-based reason
@@ -378,7 +382,7 @@ func (ea *EvidenceAssembler) generateWhySelected(input AssemblyInput, context *A
 }
 
 // addRelationMap adds relation map to evidence
-func (ea *EvidenceAssembler) addRelationMap(evidence *Evidence, input AssemblyInput, context *AssemblyContext) {
+func (ea *EvidenceAssembler) addRelationMap(evidence *Evidence, input AssemblyInput, assemblyCtx *AssemblyContext) {
 	if evidence.RelationMap == nil {
 		evidence.RelationMap = make(map[string]string)
 	}
@@ -389,12 +393,12 @@ func (ea *EvidenceAssembler) addRelationMap(evidence *Evidence, input AssemblyIn
 	}
 
 	// Add query entities if available in context
-	if context.GraphContext != nil {
-		for _, entity := range context.GraphContext.QueryEntities {
+	if assemblyCtx.GraphContext != nil {
+		for _, entity := range assemblyCtx.GraphContext.QueryEntities {
 			evidence.RelationMap[entity] = "query_entity"
 		}
 
-		for _, entity := range context.GraphContext.RelatedEntities {
+		for _, entity := range assemblyCtx.GraphContext.RelatedEntities {
 			if _, exists := evidence.RelationMap[entity]; !exists {
 				evidence.RelationMap[entity] = "contextual_entity"
 			}
@@ -563,7 +567,7 @@ func (ea *EvidenceAssembler) calculateConfidenceDistribution(evidence []Evidence
 }
 
 // AssembleFromFusedResults creates evidence from fused search results
-func (ea *EvidenceAssembler) AssembleFromFusedResults(ctx context.Context, fusedResults []FusedResult, context *AssemblyContext) (*AssemblyResponse, error) {
+func (ea *EvidenceAssembler) AssembleFromFusedResults(ctx context.Context, fusedResults []FusedResult, assemblyCtx *AssemblyContext) (*AssemblyResponse, error) {
 	inputs := make([]AssemblyInput, len(fusedResults))
 
 	for i, result := range fusedResults {
@@ -583,11 +587,11 @@ func (ea *EvidenceAssembler) AssembleFromFusedResults(ctx context.Context, fused
 		inputs[i].MatchedTerms = matchedTerms
 	}
 
-	return ea.Assemble(ctx, inputs, context)
+	return ea.Assemble(ctx, inputs, assemblyCtx)
 }
 
 // AssembleFromVectorResults creates evidence from vector search results
-func (ea *EvidenceAssembler) AssembleFromVectorResults(ctx context.Context, vectorResults []VectorSearchResult, context *AssemblyContext) (*AssemblyResponse, error) {
+func (ea *EvidenceAssembler) AssembleFromVectorResults(ctx context.Context, vectorResults []VectorSearchResult, assemblyCtx *AssemblyContext) (*AssemblyResponse, error) {
 	inputs := make([]AssemblyInput, len(vectorResults))
 
 	for i, result := range vectorResults {
@@ -600,16 +604,16 @@ func (ea *EvidenceAssembler) AssembleFromVectorResults(ctx context.Context, vect
 		}
 	}
 
-	if context == nil {
-		context = &AssemblyContext{}
+	if assemblyCtx == nil {
+		assemblyCtx = &AssemblyContext{}
 	}
-	context.RetrievalMethod = "vector"
+	assemblyCtx.RetrievalMethod = "vector"
 
-	return ea.Assemble(ctx, inputs, context)
+	return ea.Assemble(ctx, inputs, assemblyCtx)
 }
 
 // AssembleFromKeywordResults creates evidence from keyword search results
-func (ea *EvidenceAssembler) AssembleFromKeywordResults(ctx context.Context, keywordResults []KeywordSearchResult, context *AssemblyContext) (*AssemblyResponse, error) {
+func (ea *EvidenceAssembler) AssembleFromKeywordResults(ctx context.Context, keywordResults []KeywordSearchResult, assemblyCtx *AssemblyContext) (*AssemblyResponse, error) {
 	inputs := make([]AssemblyInput, len(keywordResults))
 
 	for i, result := range keywordResults {
@@ -623,12 +627,12 @@ func (ea *EvidenceAssembler) AssembleFromKeywordResults(ctx context.Context, key
 		}
 	}
 
-	if context == nil {
-		context = &AssemblyContext{}
+	if assemblyCtx == nil {
+		assemblyCtx = &AssemblyContext{}
 	}
-	context.RetrievalMethod = "keyword"
+	assemblyCtx.RetrievalMethod = "keyword"
 
-	return ea.Assemble(ctx, inputs, context)
+	return ea.Assemble(ctx, inputs, assemblyCtx)
 }
 
 // GetConfig returns the current configuration

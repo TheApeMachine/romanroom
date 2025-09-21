@@ -101,16 +101,19 @@ func NewResultRankerWithConfig(config *ResultRankerConfig) *ResultRanker {
 		return NewResultRanker()
 	}
 
+	// Create a new config to avoid modifying the original
+	newConfig := *config
+
 	// Set defaults for missing values
-	if config.MaxResults <= 0 {
-		config.MaxResults = 100
+	if newConfig.MaxResults <= 0 {
+		newConfig.MaxResults = 100
 	}
-	if config.DiversityRadius <= 0 {
-		config.DiversityRadius = 0.5
+	if newConfig.DiversityRadius <= 0 {
+		newConfig.DiversityRadius = 0.5
 	}
 
 	return &ResultRanker{
-		config: config,
+		config: &newConfig,
 	}
 }
 
@@ -281,8 +284,8 @@ func (rr *ResultRanker) calculateFreshnessScore(result *RankableResult, context 
 	// Calculate age in days
 	age := context.TimeContext.Sub(result.Timestamp).Hours() / 24.0
 
-	// Exponential decay: score = e^(-age/30) (30-day half-life)
-	result.FreshnessScore = math.Exp(-age / 30.0)
+	// Exponential decay with 30-day half-life: score = e^(-ln(2) * age / 30)
+	result.FreshnessScore = math.Exp(-math.Ln2 * age / 30.0)
 }
 
 // calculateAuthorityScore calculates authority score based on source credibility

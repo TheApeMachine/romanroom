@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"testing"
 
@@ -377,7 +378,7 @@ func BenchmarkVectorSearcherRankResults(b *testing.B) {
 	results := make([]VectorSearchResult, 100)
 	for i := range results {
 		results[i] = VectorSearchResult{
-			ID:         string(rune('a' + i)),
+			ID:         fmt.Sprintf("doc_%d", i),
 			Similarity: float64(i) / 100.0,
 			Score:      float64(i) / 100.0,
 		}

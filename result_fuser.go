@@ -94,16 +94,19 @@ func NewResultFuserWithConfig(config *ResultFuserConfig) *ResultFuser {
 		return NewResultFuser()
 	}
 
+	// Create a new config to avoid modifying the original
+	newConfig := *config
+
 	// Set defaults for missing values
-	if config.RRFConstant <= 0 {
-		config.RRFConstant = 60.0
+	if newConfig.RRFConstant <= 0 {
+		newConfig.RRFConstant = 60.0
 	}
-	if config.MaxResults <= 0 {
-		config.MaxResults = 100
+	if newConfig.MaxResults <= 0 {
+		newConfig.MaxResults = 100
 	}
 
 	return &ResultFuser{
-		config: config,
+		config: &newConfig,
 	}
 }
 
