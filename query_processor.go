@@ -135,7 +135,10 @@ func (qp *QueryProcessor) Parse(query string) (*ParsedQuery, error) {
 		QueryType: QueryTypeKeyword,
 	}
 
-	// Clean and normalize query
+	// Preserve original query for entity detection
+	originalQuery := strings.TrimSpace(query)
+	
+	// Clean and normalize query for processing
 	query = strings.TrimSpace(query)
 	query = strings.ToLower(query)
 
@@ -158,14 +161,19 @@ func (qp *QueryProcessor) Parse(query string) (*ParsedQuery, error) {
 	timeRange := qp.extractTimeRange(query)
 	parsed.TimeRange = timeRange
 
-	// Determine query type
-	parsed.QueryType = qp.determineQueryType(parsed)
+	// Determine query type using original query
+	parsed.QueryType = qp.determineQueryType(originalQuery, parsed)
 
 	return parsed, nil
 }
 
 // Expand generates additional query variations for better recall
 func (qp *QueryProcessor) Expand(ctx context.Context, originalQuery string, parsed *ParsedQuery) ([]string, error) {
+	// If expansion is disabled, return only the original query
+	if !qp.config.EnableExpansion {
+		return []string{originalQuery}, nil
+	}
+
 	if qp.queryExpander == nil {
 		return []string{originalQuery}, nil
 	}
@@ -194,7 +202,7 @@ func (qp *QueryProcessor) extractPhrases(query string) []string {
 	inQuotes := false
 	var currentPhrase strings.Builder
 
-	for i, char := range query {
+	for _, char := range query {
 		if char == '"' {
 			if inQuotes {
 				// End of phrase
@@ -304,7 +312,7 @@ func (qp *QueryProcessor) filterTerms(terms []string) []string {
 }
 
 // determineQueryType classifies the query type
-func (qp *QueryProcessor) determineQueryType(parsed *ParsedQuery) QueryType {
+func (qp *QueryProcessor) determineQueryType(originalQuery string, parsed *ParsedQuery) QueryType {
 	// Simple heuristics for query type classification
 	if len(parsed.Phrases) > 0 {
 		return QueryTypeSemantic
@@ -314,13 +322,23 @@ func (qp *QueryProcessor) determineQueryType(parsed *ParsedQuery) QueryType {
 		return QueryTypeHybrid
 	}
 
-	// Check if query looks like entity search
-	if len(parsed.Terms) <= 2 && len(parsed.Terms) > 0 {
-		// Could be entity search
-		for _, term := range parsed.Terms {
-			if len(term) > 0 && strings.ToUpper(term[:1]) == term[:1] {
-				return QueryTypeEntity
+	// Check if query looks like entity search by examining original query
+	words := strings.Fields(strings.TrimSpace(originalQuery))
+	if len(words) <= 3 && len(words) > 0 {
+		capitalizedCount := 0
+		totalWords := 0
+		for _, word := range words {
+			// Skip common words and check if word starts with uppercase
+			if len(word) > 0 && !qp.isStopWord(strings.ToLower(word)) {
+				totalWords++
+				if strings.ToUpper(word[:1]) == word[:1] {
+					capitalizedCount++
+				}
 			}
+		}
+		// If all non-stop words are capitalized, it's likely an entity query
+		if capitalizedCount > 0 && capitalizedCount == totalWords {
+			return QueryTypeEntity
 		}
 	}
 
@@ -370,6 +388,16 @@ func (qp *QueryProcessor) deduplicateQueries(queries []string) []string {
 	}
 
 	return result
+}
+
+// isStopWord checks if a word is a common stop word
+func (qp *QueryProcessor) isStopWord(word string) bool {
+	stopWords := map[string]bool{
+		"the": true, "a": true, "an": true, "and": true, "or": true, "but": true,
+		"in": true, "on": true, "at": true, "to": true, "for": true, "of": true,
+		"with": true, "by": true, "is": true, "are": true, "was": true, "were": true,
+	}
+	return stopWords[word]
 }
 
 // deduplicateStrings removes duplicate strings while preserving order

@@ -103,9 +103,11 @@ func (qe *QueryExpander) Expand(ctx context.Context, originalQuery string, parse
 		result.Expansions = append(result.Expansions, acronyms...)
 	}
 
-	// Add context-based expansions
-	contextExpansions := qe.AddContext(originalQuery, parsed)
-	result.Expansions = append(result.Expansions, contextExpansions...)
+	// Add context-based expansions only if any expansion type is enabled
+	if qe.config.EnableSynonyms || qe.config.EnableParaphrases || qe.config.EnableSpelling || qe.config.EnableAcronyms {
+		contextExpansions := qe.AddContext(originalQuery, parsed)
+		result.Expansions = append(result.Expansions, contextExpansions...)
+	}
 
 	// Deduplicate and limit expansions
 	result.Expansions = qe.deduplicateStrings(result.Expansions)
@@ -389,7 +391,13 @@ func (qe *QueryExpander) generateAcronymExpansions(query string, parsed *ParsedQ
 		for _, phrase := range parsed.Phrases {
 			acronym := qe.createAcronym(phrase)
 			if acronym != "" && len(acronym) >= 2 {
-				acronymQuery := strings.ReplaceAll(query, phrase, acronym)
+				// Replace phrase in original query (handle both quoted and unquoted)
+				quotedPhrase := `"` + phrase + `"`
+				acronymQuery := strings.ReplaceAll(query, quotedPhrase, acronym)
+				if acronymQuery == query {
+					// Try without quotes
+					acronymQuery = strings.ReplaceAll(query, phrase, acronym)
+				}
 				if acronymQuery != query {
 					acronymExpansions = append(acronymExpansions, acronymQuery)
 				}
@@ -475,11 +483,11 @@ func (qe *QueryExpander) createAcronym(phrase string) string {
 }
 
 // deduplicateStrings removes duplicate strings while preserving order
-func (qe *QueryExpander) deduplicateStrings(strings []string) []string {
+func (qe *QueryExpander) deduplicateStrings(strs []string) []string {
 	seen := make(map[string]bool)
-	var result []string
+	result := make([]string, 0) // Ensure non-nil slice
 
-	for _, str := range strings {
+	for _, str := range strs {
 		normalized := strings.TrimSpace(strings.ToLower(str))
 		if normalized != "" && !seen[normalized] {
 			seen[normalized] = true

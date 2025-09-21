@@ -122,7 +122,10 @@ func (ks *KeywordSearcher) Search(ctx context.Context, query string, k int, filt
 	}
 
 	// Perform search using the search index
-	searchResults, err := ks.searchIndex.Search(processedQuery, k*2) // Get more results for better ranking
+	searchOptions := SearchIndexOptions{
+		Limit: k * 2, // Get more results for better ranking
+	}
+	searchResults, err := ks.searchIndex.Search(ctx, processedQuery, searchOptions)
 	if err != nil {
 		return nil, fmt.Errorf("search index query failed: %w", err)
 	}
@@ -264,6 +267,9 @@ func (ks *KeywordSearcher) tokenize(text string) []string {
 	if text == "" {
 		return []string{}
 	}
+
+	// Preprocess text first
+	text = ks.preprocessText(text)
 
 	// Simple tokenization - split on whitespace and punctuation
 	var tokens []string
@@ -431,13 +437,14 @@ func (ks *KeywordSearcher) calculateEnhancedScore(result KeywordSearchResult, qu
 }
 
 // deduplicateStrings removes duplicate strings while preserving order
-func (ks *KeywordSearcher) deduplicateStrings(strings []string) []string {
+func (ks *KeywordSearcher) deduplicateStrings(strs []string) []string {
 	seen := make(map[string]bool)
 	var result []string
 
-	for _, str := range strings {
-		if !seen[str] {
-			seen[str] = true
+	for _, str := range strs {
+		normalized := strings.TrimSpace(str)
+		if normalized != "" && !seen[normalized] {
+			seen[normalized] = true
 			result = append(result, str)
 		}
 	}

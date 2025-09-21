@@ -92,7 +92,7 @@ func (vs *VectorSearcher) Search(ctx context.Context, queryEmbedding []float32, 
 	normalizedQuery := vs.normalizeVector(queryEmbedding)
 
 	// Perform the search
-	vectorResults, err := vs.vectorStore.Search(normalizedQuery, k, filters)
+	vectorResults, err := vs.vectorStore.Search(ctx, normalizedQuery, k, filters)
 	if err != nil {
 		return nil, fmt.Errorf("vector store search failed: %w", err)
 	}
